@@ -46,14 +46,14 @@ class ARM_CORTEX_M3(ARM):
     # Based on output of `gdb > maint print xml-tdesc` on real Cortex-M3
     registers = {'r0': 0, 'r1': 1, 'r2': 2, 'r3': 3, 'r4': 4, 'r5': 5, 'r6': 6,
                  'r7': 7, 'r8': 8, 'r9': 9, 'r10': 10, 'r11': 11, 'r12': 12, 'ip': 12,
-                 'sp': 13, 'lr': 14, 'pc': 15, 'xPSR': 16, 'cpsr': 25,
+                 'sp': 13, 'lr': 14, 'pc': 15, 'xPSR': 16,
                  }
     unicorn_registers = {'r0': UC_ARM_REG_R0, 'r1': UC_ARM_REG_R1, 'r2': UC_ARM_REG_R2,
                          'r3': UC_ARM_REG_R3, 'r4': UC_ARM_REG_R4, 'r5': UC_ARM_REG_R5,
                          'r6': UC_ARM_REG_R6, 'r7': UC_ARM_REG_R7, 'r8': UC_ARM_REG_R8,
                          'r9': UC_ARM_REG_R9, 'r10': UC_ARM_REG_R10, 'r11': UC_ARM_REG_R11,
                          'r12': UC_ARM_REG_R12, 'sp': UC_ARM_REG_SP, 'lr': UC_ARM_REG_LR,
-                         'pc': UC_ARM_REG_PC, 'xPSR': UC_ARM_REG_XPSR, 'cpsr': UC_ARM_REG_CPSR
+                         'pc': UC_ARM_REG_PC, 'xPSR': UC_ARM_REG_XPSR,
                          }
 
     capstone_arch = CS_ARCH_ARM
@@ -64,6 +64,10 @@ class ARM_CORTEX_M3(ARM):
     unicorn_arch = UC_ARCH_ARM
     unicorn_mode = UC_MODE_LITTLE_ENDIAN | UC_MODE_THUMB
     sr_name = 'xPSR'
+
+
+class ARM_CORTEX_M3_PANDA(ARM_CORTEX_M3):
+    sr_name = 'cpsr'
 
     @staticmethod
     def register_write_cb(avatar, *args, **kwargs):
@@ -82,23 +86,25 @@ class ARM_CORTEX_M3(ARM):
 
             if args[0] == 'pc' or args[0] == 'cpsr':
                 cpsr = qemu.protocols.registers.read_register('cpsr')
-                qemu.log.warning(f"Found cpsr register to be 0x{cpsr:x}  | args({args})") 
-                if cpsr & 1<< shiftval:
+                qemu.log.warning(f"Found cpsr register to be 0x{cpsr:x}  | args({args})")
+                if cpsr & 1 << shiftval:
                     return
                 else:
-                    cpsr |= 1<<shiftval
-                    qemu.log.warning(f"Updating cpsr register to 0x{cpsr:x}  | args({args})") 
+                    cpsr |= 1 << shiftval
+                    qemu.log.warning(f"Updating cpsr register to 0x{cpsr:x}  | args({args})")
                     qemu.protocols.registers.write_register('cpsr', cpsr)
 
     @staticmethod
     def init(avatar):
         avatar.watchmen.add('TargetRegisterWrite', 'after',
-                            ARM_CORTEX_M3.register_write_cb)
+                            ARM_CORTEX_M3_PANDA.register_write_cb)
+        ARM_CORTEX_M3_PANDA.registers.pop('xPSR')
+        ARM_CORTEX_M3_PANDA.registers['cpsr'] = 25
+        ARM_CORTEX_M3_PANDA.unicorn_registers.pop('xPSR')
+        ARM_CORTEX_M3_PANDA.unicorn_registers['cpsr'] = UC_ARM_REG_CPSR
 
-        pass
 
-
-ARMV7M = ARM_CORTEX_M3
+ARMV7M = [ARM_CORTEX_M3, ARM_CORTEX_M3_PANDA]
 
 
 class ARMBE(ARM):
