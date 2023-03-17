@@ -103,3 +103,7 @@ ENV/
 
 # Pycharm/IntelliJ files
 .idea
+
+# ignore the generated dockerfile
+Dockerfile
+
