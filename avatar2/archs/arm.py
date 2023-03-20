@@ -52,7 +52,8 @@ class ARM_CORTEX_M3(ARM):
     keystone_mode = KS_MODE_LITTLE_ENDIAN | KS_MODE_THUMB
     unicorn_arch = UC_ARCH_ARM
     unicorn_mode = UC_MODE_LITTLE_ENDIAN | UC_MODE_THUMB
-    sr_name = 'xPSR'
+    sr_name = 'xpsr'
+    special_registers = {'xpsr': {'gdb_expression' : "$xpsr", 'format': "{:d}"}}
 
     @staticmethod
     def register_write_cb(avatar, *args, **kwargs):
@@ -81,36 +82,10 @@ class ARM_CORTEX_M3(ARM):
     def init(avatar):
         avatar.watchmen.add('TargetRegisterWrite', 'after',
                             ARM_CORTEX_M3.register_write_cb)
+        pass
 
 
-class ARM_CORTEX_M(ARM):
-    """Base architecture for Arm Cortex-M targets (uses a Cortex-M3 as reference implementation)"""
-    # We use the cortex-m3 as a reference implementation of the cortex M architecture,
-    # to use others requires adjustments to the configurable machine in QEmu
-    cpu_model = 'cortex-m3'
-
-    # Based on output of `gdb > maint print xml-tdesc` on Cortex-M3
-    registers = {'r0': 0, 'r1': 1, 'r2': 2, 'r3': 3, 'r4': 4, 'r5': 5, 'r6': 6,
-                 'r7': 7, 'r8': 8, 'r9': 9, 'r10': 10, 'r11': 11, 'r12': 12, 'ip': 12,
-                 'sp': 13, 'lr': 14, 'pc': 15, 'xPSR': 16,
-                 }
-    unicorn_registers = {'r0': UC_ARM_REG_R0, 'r1': UC_ARM_REG_R1, 'r2': UC_ARM_REG_R2,
-                         'r3': UC_ARM_REG_R3, 'r4': UC_ARM_REG_R4, 'r5': UC_ARM_REG_R5,
-                         'r6': UC_ARM_REG_R6, 'r7': UC_ARM_REG_R7, 'r8': UC_ARM_REG_R8,
-                         'r9': UC_ARM_REG_R9, 'r10': UC_ARM_REG_R10, 'r11': UC_ARM_REG_R11,
-                         'r12': UC_ARM_REG_R12, 'sp': UC_ARM_REG_SP, 'lr': UC_ARM_REG_LR,
-                         'pc': UC_ARM_REG_PC, 'xPSR': UC_ARM_REG_XPSR}
-    capstone_arch = CS_ARCH_ARM
-    keystone_arch = KS_ARCH_ARM
-    capstone_mode = CS_MODE_LITTLE_ENDIAN | CS_MODE_THUMB | CS_MODE_MCLASS
-    keystone_arch = KS_ARCH_ARM
-    keystone_mode = KS_MODE_LITTLE_ENDIAN | KS_MODE_THUMB
-    unicorn_arch = UC_ARCH_ARM
-    unicorn_mode = UC_MODE_LITTLE_ENDIAN | UC_MODE_THUMB
-    sr_name = 'xPSR'
-
-
-ARMV7M = [ARM_CORTEX_M3, ARM_CORTEX_M]
+ARMV7M = ARM_CORTEX_M3
 
 
 class ARMBE(ARM):

@@ -383,7 +383,7 @@ class Avatar(Thread):
             # Sync the registers!
             for r in regs:
                 val = from_target.read_register(r)
-                self.log.debug(f"Synchronizing register {r:6} (0x{val:08x})")
+                self.log.warning(f"Synchronizing register {r:6} ({val})")
                 to_target.write_register(r, val)
             self.log.info("Synchronized Registers")
 
