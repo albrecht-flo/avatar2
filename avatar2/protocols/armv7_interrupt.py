@@ -4,6 +4,7 @@ from threading import Thread, Event, Condition
 import logging
 import re
 from time import sleep
+from typing import List
 
 from bitstring import BitStream, ReadError
 
@@ -188,8 +189,9 @@ class ARMV7InterruptProtocol(Thread):
                     "ldr r3, =writeme\n" +
                     "ldr r4, [r3]\n" +
                     "cmp r4, #0\n" +
-                    "beq intloop\n"
+                    "beq intloop\n" +
 
+                    "m_reset:\n" +
                     "movs r4, #0\n" +
                     "str  r4, [r3]\n" +  # Reset `writeme`
 
@@ -202,7 +204,7 @@ class ARMV7InterruptProtocol(Thread):
         mtb_declaration = "\n".join(mtb_declaration)
         return mtb_declaration + self.MONITOR_STUB
 
-    def inject_monitor_stub(self, addr=0x20010000, vtor=0x20011000, num_isr=48):
+    def inject_monitor_stub(self, addr=0x20020000, vtor=0x20021000, num_isr=48):
         """
         Injects a safe monitoring stub.
         This has the following effects:
@@ -269,6 +271,7 @@ class ARMV7InterruptProtocol(Thread):
             return False
         int_num = self._current_isr_num
         self.log.info(f"Returning from interrupt {int_num}.")
+        self._current_isr_num = None
         # We can just BX LR for now.
         return self._origin.write_memory(address=self._monitor_stub_writeme, size=4, value=1)
 

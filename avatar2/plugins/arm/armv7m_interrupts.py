@@ -1,9 +1,11 @@
 import logging
 import pprint
+from time import sleep
 from types import MethodType
 
 from avatar2 import Avatar
 from avatar2.archs import ARMV7M
+from avatar2.protocols.armv7_hal import ARMV7HALProtocol
 from avatar2.protocols.armv7_interrupt import ARMV7InterruptProtocol
 from avatar2.protocols.coresight import CoreSightProtocol
 from avatar2.protocols.qemu_armv7m_interrupt import QEmuARMV7MInterruptProtocol
@@ -24,6 +26,7 @@ def add_protocols(self: Avatar, **kwargs):
         # target.protocols.interrupts = CoreSightProtocol(target.avatar, target)
         target.protocols.interrupts = ARMV7InterruptProtocol(target.avatar, target,
                                                              self._plugins_armv7m_interrupts_config['protocol'])
+        # target.protocols.hal = ARMV7HALProtocol(target.avatar, target)
 
         # We want to remove the decorators around the read_memory function of
         # this target, to allow reading while it is running (thanks oocd)
@@ -41,7 +44,6 @@ def add_protocols(self: Avatar, **kwargs):
     else:
         target.avatar.irq_pair.append(target)
     assert len(target.avatar.irq_pair) <= 2, "Interrupts only work with two targets"
-
 
 
 def enable_interrupt_forwarding(self, from_target, to_target=None):
@@ -66,8 +68,7 @@ def enable_interrupt_forwarding(self, from_target, to_target=None):
         self._hardware_target.protocols.interrupts.enable_interrupts()
         isr_addr = self._hardware_target.protocols.interrupts._monitor_stub_isr - 1
         self.log.info("ISR is at %#08x" % isr_addr)
-        # NOTE: This won't work on many targets, eg cortex m0 can not have HW breakpoints in RAM
-        # from_target.set_breakpoint(isr_addr, hardware=True)
+        # self._hardware_target.protocols.hal.enable_hal()
 
     if self._virtual_target:
         self._virtual_target.protocols.interrupts.enable_interrupts()
@@ -107,8 +108,8 @@ def transfer_interrupt_state(self, to_target, from_target):
     vm_irq_p.set_vector_table_base(vtor_loc)
     # Transfer which interrupts are enabled
     enabled_interrupts = hw_irq_p.get_enabled_interrupts()
+    enabled_interrupts = enabled_interrupts & 0x7fffffff
     vm_irq_p.set_enabled_interrupts(enabled_interrupts)
-
 
 
 @watch("TargetInterruptEnter")
@@ -117,16 +118,23 @@ def forward_interrupt(self, message: TargetInterruptEnterMessage):
     assert origin is self._hardware_target, "Origin is not the hardware target"
     self.log.warning(
         f"forward_interrupt hit with origin '{type(origin).__name__}' and message '{message.__dict__}'")
-    self.queue.put(message)
-    if self._plugins_armv7m_interrupts_injected_irq is not None:
-        self.log.critical(f"Interrupt interleaving not yet supported, skipping interrupt {message.interrupt_num}")
+    irq_num = message.interrupt_num
+
+    if irq_num in self._plugins_armv7m_interrupts_config['plugin']['ignore_irqs']:
+        origin.protocols.interrupts.inject_exc_return()
         return
 
-    irq_num = message.interrupt_num
+    self.queue.put(message)
+    if self._plugins_armv7m_interrupts_injected_irq is not None:
+        self.log.critical(f"Interrupt interleaving, sequentializing irq {irq_num}")
+    while self._plugins_armv7m_interrupts_injected_irq is not None:
+        sleep(0.01)
+
     self.log.info("Injecting IRQ 0x%x" % irq_num)
     destination = self._virtual_target
     destination.protocols.interrupts.inject_interrupt(irq_num)
     self._plugins_armv7m_interrupts_injected_irq = irq_num
+
 
 @watch('RemoteInterruptEnter')
 def _handle_remote_interrupt_enter_message(self, message):
@@ -146,7 +154,6 @@ def _handle_remote_interrupt_enter_message(self, message):
     #         self._irq_src.cont(blocking=False)
     #     except:
     #         self.log.exception(" ")
-
 
 
 @watch('RemoteInterruptExit')
